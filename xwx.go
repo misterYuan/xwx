@@ -3,11 +3,15 @@ package xwx
 import (
 	"crypto/sha1"
 	"encoding/json"
+	"encoding/xml"
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"sort"
+	"strconv"
+	"time"
 )
 
 // 用户参数配置
@@ -106,6 +110,7 @@ func GetProfile(accessToken string, openID string) (*profileRes, error) {
 	return pres, json.Unmarshal(bs, pres)
 }
 
+// 签名验证(确定是否为微信服务器发过来的消息)
 func SignVerify(token, signature, timestamp, nonce string) bool {
 	strs := sort.StringSlice{token, timestamp, nonce}
 	sort.Strings(strs)
@@ -117,3 +122,71 @@ func SignVerify(token, signature, timestamp, nonce string) bool {
 	h.Write([]byte(str))
 	return fmt.Sprintf("%x", h.Sum(nil)) == signature
 }
+
+/*
+微信消息处理
+*/
+type MsgBase struct {
+	XML          xml.Name `xml:"xml"`
+	ToUserName   string   `xml:"ToUserName"`
+	FromUserName string   `xml:"FromUserName"`
+	CreateTime   string   `xml:"CreateTime"`
+	MsgType      string   `xml:"MsgType"`
+	MsgId        string   `xml:"MsgId"`
+}
+
+type textMsgR struct {
+	*MsgBase
+	Content string `xml:"Content"`
+}
+
+func GetTextMsg(data []byte) *textMsgR {
+	v := new(textMsgR)
+	if err := xml.Unmarshal(data, v); err != nil {
+		log.Fatal(err)
+	}
+	return v
+}
+
+/*响应消息数据格式*/
+type CDATA struct {
+	Text string `xml:",innerxml"`
+}
+
+func newCDATA(v string) CDATA {
+	return CDATA{"<![CDATA[" + v + "]]>"}
+}
+
+type replyBase struct {
+	XMLName      xml.Name `xml:"xml"`
+	ToUserName   CDATA
+	FromUserName CDATA
+	CreateTime   CDATA
+	MsgType      CDATA
+}
+
+/*响应消息*文本格式*/
+type textReply struct {
+	replyBase
+	Content CDATA
+}
+
+func GetTextReply(mb *MsgBase, text string) *textReply {
+	tr := new(textReply)
+	tr.ToUserName = newCDATA(mb.FromUserName)
+	tr.FromUserName = newCDATA(mb.ToUserName)
+	tr.CreateTime = newCDATA(strconv.FormatInt(time.Now().Unix(), 10))
+	tr.MsgType = newCDATA("text")
+	tr.Content = newCDATA(text)
+	return tr
+}
+
+// func newReplyText(contentM map[string]interface{}, text string) *replyText {
+// 	return &replyText{
+// 		ToUserName:   newCDATA(contentM["FromUserName"].(string)),
+// 		FromUserName: newCDATA(contentM["ToUserName"].(string)),
+// 		CreateTime:   newCDATA(strconv.FormatInt(time.Now().Unix(), 10)),
+// 		MsgType:      newCDATA("text"),
+// 		Content:      newCDATA(text),
+// 	}
+// }
