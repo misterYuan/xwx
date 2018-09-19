@@ -1,11 +1,13 @@
 package xwx
 
 import (
+	"crypto/sha1"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"sort"
 )
 
 // 用户参数配置
@@ -76,15 +78,15 @@ func GetInfoAccessToken(o *info, code string) (*getInfoATRes, error) {
 
 // 使用token 获取用户信息
 type profileRes struct {
-	Openid     string `json:"openid"`
-	Nickname   string `json:"nickname"`
-	Sex        string `json:"sex"`
-	Province   string `json:"province"`
-	City       string `json:"city"`
-	Country    string `json:"country"`
-	HeadImgUrl string `json:"headimgurl"`
-	Privilege  string `json:"privilege"`
-	Unionid    string `json:"unionid"`
+	Openid     string   `json:"openid"`
+	Nickname   string   `json:"nickname"`
+	Sex        int      `json:"sex"`
+	Province   string   `json:"province"`
+	City       string   `json:"city"`
+	Country    string   `json:"country"`
+	HeadImgUrl string   `json:"headimgurl"`
+	Privilege  []string `json:"privilege"`
+	Unionid    string   `json:"unionid"`
 }
 
 func GetProfile(accessToken string, openID string) (*profileRes, error) {
@@ -102,4 +104,16 @@ func GetProfile(accessToken string, openID string) (*profileRes, error) {
 	}
 	pres := new(profileRes)
 	return pres, json.Unmarshal(bs, pres)
+}
+
+func SignVerify(token, signature, timestamp, nonce string) bool {
+	strs := sort.StringSlice{token, timestamp, nonce}
+	sort.Strings(strs)
+	str := ""
+	for _, signature := range strs {
+		str += signature
+	}
+	h := sha1.New()
+	h.Write([]byte(str))
+	return fmt.Sprintf("%x", h.Sum(nil)) == signature
 }
