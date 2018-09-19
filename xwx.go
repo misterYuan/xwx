@@ -126,7 +126,11 @@ func SignVerify(token, signature, timestamp, nonce string) bool {
 /*
 微信消息处理
 */
-type MsgBase struct {
+type getMsgBaser interface {
+	getMsgBase() *msgBase
+}
+
+type msgBase struct {
 	XML          xml.Name `xml:"xml"`
 	ToUserName   string   `xml:"ToUserName"`
 	FromUserName string   `xml:"FromUserName"`
@@ -135,8 +139,12 @@ type MsgBase struct {
 	MsgId        string   `xml:"MsgId"`
 }
 
+func (m *msgBase) getMsgBase() *msgBase {
+	return m
+}
+
 type textMsgR struct {
-	*MsgBase
+	*msgBase
 	Content string `xml:"Content"`
 }
 
@@ -171,7 +179,8 @@ type textReply struct {
 	Content CDATA
 }
 
-func GetTextReply(mb *MsgBase, text string) *textReply {
+func GetTextReply(mber getMsgBaser, text string) *textReply {
+	mb := mber.getMsgBase()
 	tr := new(textReply)
 	tr.ToUserName = newCDATA(mb.FromUserName)
 	tr.FromUserName = newCDATA(mb.ToUserName)
@@ -180,13 +189,3 @@ func GetTextReply(mb *MsgBase, text string) *textReply {
 	tr.Content = newCDATA(text)
 	return tr
 }
-
-// func newReplyText(contentM map[string]interface{}, text string) *replyText {
-// 	return &replyText{
-// 		ToUserName:   newCDATA(contentM["FromUserName"].(string)),
-// 		FromUserName: newCDATA(contentM["ToUserName"].(string)),
-// 		CreateTime:   newCDATA(strconv.FormatInt(time.Now().Unix(), 10)),
-// 		MsgType:      newCDATA("text"),
-// 		Content:      newCDATA(text),
-// 	}
-// }
